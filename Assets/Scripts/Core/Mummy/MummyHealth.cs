@@ -8,9 +8,12 @@ using UnityEngine;
 public class MummyHealth : MonoBehaviour, IDamageable
 {
     // Максимальна кількість здоров'я мумії
-    [SerializeField] private int maxHealth = 50;
+    [SerializeField] private float baseHealth = 50;
+    [SerializeField] private AudioClip hurtSound;
+    [SerializeField] private AudioClip deathSound;
+
     // Поточна кількість здоров'я мумії
-    private int currentHealth;
+    private float currentHealth;
 
     // Змінна, яка визначає жива мумія чи ні
     public bool IsDead => currentHealth <= 0;
@@ -19,14 +22,19 @@ public class MummyHealth : MonoBehaviour, IDamageable
 
     private void Awake()
     {
-        currentHealth = maxHealth;
+        currentHealth = baseHealth;
+    }
+
+    private void Start()
+    {
+        ApplyDifficulty();
     }
 
     /// <summary>
     /// Метод обробки отримання пошкодження мумією
     /// </summary>
     /// <param name="damage">Значення пошкодження</param>
-    public void TakeDamage(int damage)
+    public void TakeDamage(float damage)
     {
         // Якщо мумія мертва - завершуємо виконання
         if (IsDead)
@@ -34,13 +42,23 @@ public class MummyHealth : MonoBehaviour, IDamageable
 
         // Віднімаємо значення пошкодження від поточного значення здоров'я
         currentHealth -= damage;
-        Debug.Log($"Enemy took damage. HP: {currentHealth}");
+
+        if (currentHealth > 0)
+            AudioManager.Instance.PlaySFX(hurtSound, transform.position);
 
         // Якщо поточне здоров'є менше, або дорівнює 0 - мумія помирає
         if (currentHealth <= 0)
-        {
             Die();
-        }
+    }
+
+    public void ApplyDifficulty()
+    {
+        int stage = Mathf.FloorToInt(GameTimeManager.GameTime / 60f);
+        
+        float healthMultiplier = 1f + stage * 0.4f;
+        Mathf.Clamp(healthMultiplier, healthMultiplier, 3f);
+
+        currentHealth = baseHealth * healthMultiplier;
     }
 
     /// <summary>
@@ -48,6 +66,12 @@ public class MummyHealth : MonoBehaviour, IDamageable
     /// </summary>
     private void Die()
     {
+        AudioManager.Instance.PlaySFX(deathSound, transform.position);
         OnDead?.Invoke();
+    }
+
+    public bool Heal(int value)
+    {
+        throw new NotImplementedException();
     }
 }

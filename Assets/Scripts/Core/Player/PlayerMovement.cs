@@ -7,6 +7,10 @@ using UnityEngine.InputSystem;
 /// </summary>
 public class PlayerMovement : MonoBehaviour
 {
+    [Header("References")]
+    // ѕосиланн€ на камеру гравц€
+    [SerializeField] protected Transform cameraPivot;
+
     // ¬будований Unity-класс керуванн€ персонажем
     private CharacterController characterController;
     // ¬ектор швидкост≥ гравц€
@@ -41,13 +45,10 @@ public class PlayerMovement : MonoBehaviour
     private Vector2 lookInput;
     // «наченн€ обертанн€ камери гравц€ по ос≥ X
     private float cameraRotationX = 0f;
-    // ѕосиланн€ на камеру гравц€
-    private Camera playerCamera;
 
     private void Awake()
     {
         characterController = GetComponent<CharacterController>();
-        playerCamera = GetComponentInChildren<Camera>();
         // ‘≥ксуЇмо курсор у центр≥ екрана та приховуЇмо його
         Cursor.lockState = CursorLockMode.Locked; 
     }
@@ -103,7 +104,7 @@ public class PlayerMovement : MonoBehaviour
         // ќбертаЇмо камеру вгору та вниз дл€ вертикального погл€ду з урахуванн€м л≥м≥т≥в 
         cameraRotationX -= lookInput.y * mouseSensitivity;
         cameraRotationX = Mathf.Clamp(cameraRotationX, lookDownLimit, lookUpLimit);
-        playerCamera.transform.localRotation = Quaternion.Euler(cameraRotationX, 0f, 0f);
+        cameraPivot.localRotation = Quaternion.Euler(cameraRotationX, 0f, 0f);
     }
 
     /// <summary>
@@ -149,6 +150,17 @@ public class PlayerMovement : MonoBehaviour
         // якщо в≥дпущено - д≥лимо швидк≥сть на коеф≥ц≥Їнт б≥гу
         if (context.canceled)
             walkSpeed /= sprintMultiplier;
+    }
+
+    public void OnPause(InputAction.CallbackContext context)
+    {
+        if (context.performed)
+        {
+            if (GameManager.Instance.CurrentState == GameManager.GameState.Playing)
+                GameManager.Instance.PauseGame();
+            else if (GameManager.Instance.CurrentState == GameManager.GameState.Paused)
+                GameManager.Instance.ResumeGame();
+        }
     }
 
     /// <summary>

@@ -7,7 +7,7 @@ public class Pistol : Weapon
 {
     [Header("Stats")]
     // Значення пошеодження пістолета
-    [SerializeField] private int damage = 10;
+    [SerializeField] private int damage = 35;
     // Дистанція стрільби пістолета
     [SerializeField] private float range = 100f;
     // Швидкість стрільби пістолета (вистріли у секунду)
@@ -16,8 +16,6 @@ public class Pistol : Weapon
     [Header("Ammo")]
     // Максимальна кількість патронів у магазині
     [SerializeField] private int magazineSize = 12;
-    // Кількість допо
-    [SerializeField] private int reserveAmmo = 84;
 
     [SerializeField] private Sprite weaponIcon;
 
@@ -29,19 +27,16 @@ public class Pistol : Weapon
 
     // Об'єкт керування анімаціями пістолету
     private Animator animator;
-    // Камера гравця
-    private Camera playerCamera;
 
     private void Awake()
     {
         animator = GetComponent<Animator>();
-        playerCamera = GetComponentInParent<Camera>();
         currentAmmo = magazineSize;
 
         HUDController.Instance.SetActiveWeapon(this);
 
         NotifyWeaponSelected(weaponIcon);
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
+        NotifyAmmoChanged(currentAmmo);
     }
 
     /// <summary>
@@ -80,7 +75,7 @@ public class Pistol : Weapon
     /// </summary>
     public override void Reload()
     {
-        if (currentState == WeaponState.Reloading || reserveAmmo <= 0 || currentAmmo == magazineSize)
+        if (currentState == WeaponState.Reloading || currentAmmo == magazineSize)
             return;
 
         currentState = WeaponState.Reloading;
@@ -89,8 +84,6 @@ public class Pistol : Weapon
             animator.SetTrigger("ReloadEmpty");
         else
             animator.SetTrigger("Reload");
-
-        reserveAmmo -= magazineSize - currentAmmo;
     }
 
     /// <summary>
@@ -101,14 +94,13 @@ public class Pistol : Weapon
         currentState = WeaponState.Drawing;
         animator.SetTrigger("Unhide");
         NotifyWeaponSelected(weaponIcon);
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
+        NotifyAmmoChanged(currentAmmo);
     }
     
     public void OnFireAnimationEvent()
     {
         currentAmmo--;
-
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
+        NotifyAmmoChanged(currentAmmo);
 
         if (currentAmmo <= 0)
         {
@@ -116,16 +108,12 @@ public class Pistol : Weapon
             return;
         }
 
-        if (Physics.Raycast(playerCamera.transform.position,
-                            playerCamera.transform.forward,
-                            out RaycastHit hit,
-                            range))
+        Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f));
+
+        if (Physics.Raycast(ray, out RaycastHit hit, range, hitMask))
         {
-            IDamageable damageable = hit.collider.GetComponent<IDamageable>();
-            if (damageable != null)
-            {
+            if (hit.collider.TryGetComponent<IDamageable>(out var damageable))
                 damageable.TakeDamage(damage);
-            }
         }
     }
 
@@ -134,7 +122,7 @@ public class Pistol : Weapon
         if (currentState == WeaponState.Reloading)
         {
             currentAmmo = magazineSize;
-            NotifyAmmoChanged(currentAmmo, reserveAmmo);
+            NotifyAmmoChanged(currentAmmo);
         }
         
         currentState = WeaponState.Idle;

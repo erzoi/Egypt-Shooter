@@ -1,17 +1,31 @@
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class MummyController : MonoBehaviour
+public class MummyController : MonoBehaviour, ISpawnable
 {
+    [Header("Settings")]
+    [SerializeField] private float attackDistance = 2f;
+    [SerializeField] private float rotationSpeed = 8f;
+    [SerializeField] private float attackCooldown = 1.5f;
+    [SerializeField] private float baseSpeed = 5f;
+    [SerializeField] private int baseScoreReward = 10;
+
+    [Header("Attack Settings")]
+    [SerializeField] private float baseDamage = 3;
+    [SerializeField] private float attackRadius = 0.8f;
+    [SerializeField] private Transform attackPoint;
+    [SerializeField] private LayerMask playerLayer;
+
+    private Transform target;
     private NavMeshAgent agent;
     private Animator animator;
-    private Transform player;
     private MummyHealth health;
+    private ObjectSpawner spawner;
 
-    [SerializeField] private float attackDistance = 2f;
-    [SerializeField] private float attackCooldown = 1.5f;
-
-    private float attackTimer;
+    private float currentDamage;
+    private float lastAttackTime;
+    private bool blockMovement;
     private bool isDead;
 
     private void Awake()
@@ -19,47 +33,69 @@ public class MummyController : MonoBehaviour
         health = GetComponent<MummyHealth>();
         agent = GetComponent<NavMeshAgent>();
         animator = GetComponent<Animator>();
-        player = GameObject.FindWithTag("Player").transform;
+        target = GameObject.FindWithTag("Player").transform;
 
-        agent.stoppingDistance = attackDistance;
-        agent.updateRotation = false;
-
+        agent.stoppingDistance = attackDistance / 2f;
+        agent.speed = baseSpeed;
+        currentDamage = baseDamage;
+        
         health.OnDead += Die;
+    }
+
+    private void Start()
+    {
+        ApplyDifficulty();
     }
 
     private void Update()
     {
-        if (isDead) return;
+        // якщо поточний стан гри в≥др≥зна€Їтьс€ в≥д активного, завершуЇмо виконанн€
+        if (GameManager.Instance.CurrentState != GameManager.GameState.Playing)
+            return;
 
-        agent.SetDestination(player.position);
+        if (target == null || isDead) return;
 
-        UpdateMovement();
-        HandleAttack();
-    }
+        float distance = Vector3.Distance(transform.position, target.position);
 
-    private void UpdateMovement()
-    {
-        if (agent.pathPending) return;
-
-        float distance = agent.remainingDistance;
-
-        if (distance > agent.stoppingDistance)
+        if (distance > attackDistance && !blockMovement)
         {
-            // ƒвигаемс€
-            animator.SetFloat("Speed", agent.velocity.magnitude);
+            Move();
         }
         else
         {
-            // ќстановились
-            animator.SetFloat("Speed", 0f);
+            RotateToTarget();
+            Attack();
         }
 
-        RotateTowardsPlayer();
+        UpdateAnimator();
     }
 
-    private void RotateTowardsPlayer()
+    void Move()
     {
-        Vector3 direction = (player.position - transform.position).normalized;
+        agent.isStopped = false;
+        agent.updateRotation = true;
+        agent.SetDestination(target.position);
+    }
+
+    void Attack()
+    {
+        agent.isStopped = true;
+        agent.updateRotation = false;
+        agent.velocity = Vector3.zero;
+        agent.ResetPath();
+
+        blockMovement = true;
+
+        if (Time.time >= lastAttackTime + attackCooldown)
+        {
+            animator.SetBool("Attack", true);
+            lastAttackTime = Time.time;
+        }
+    }
+
+    void RotateToTarget()
+    {
+        Vector3 direction = (target.position - transform.position);
         direction.y = 0;
 
         if (direction == Vector3.zero) return;
@@ -68,28 +104,49 @@ public class MummyController : MonoBehaviour
         transform.rotation = Quaternion.Slerp(
             transform.rotation,
             targetRotation,
-            10f * Time.deltaTime
+            rotationSpeed * Time.deltaTime
         );
     }
 
-    private void HandleAttack()
+    void UpdateAnimator()
     {
-        if (agent.pathPending) return;
+        float speed = agent.velocity.magnitude;
+        animator.SetFloat("Speed", speed);
+    }
 
-        if (agent.remainingDistance <= agent.stoppingDistance)
+    public void OnAttackFinish()
+    {
+        blockMovement = false;
+    }
+
+    public void DealDamage()
+    {
+        Collider[] hits = Physics.OverlapSphere(attackPoint.position, attackRadius, playerLayer);
+
+        foreach (var hit in hits)
         {
-            attackTimer += Time.deltaTime;
-
-            if (attackTimer >= attackCooldown)
+            DamageReceiver playerHealth = hit.GetComponent<DamageReceiver>();
+            if (playerHealth != null)
             {
-                attackTimer = 0f;
-                animator.SetTrigger("Attack");
+                playerHealth.TakeDamage(currentDamage);
             }
         }
-        else
-        {
-            attackTimer = 0f;
-        }
+    }
+
+    public void ApplyDifficulty()
+    {
+        int stage = Mathf.FloorToInt(GameTimeManager.GameTime / 60f);
+
+        float damageMultiplier = 1f + stage * 0.25f;
+        float speedMultiplier = 1f + stage * 0.1f;
+
+        currentDamage = baseDamage * damageMultiplier;
+        agent.speed = baseSpeed * speedMultiplier;
+    }
+
+    public void Initialize(ObjectSpawner spawner)
+    {
+        this.spawner = spawner;
     }
 
     public void Die()
@@ -97,6 +154,9 @@ public class MummyController : MonoBehaviour
         isDead = true;
         agent.enabled = false;
         GetComponent<Collider>().enabled = false;
+
+        ScoreManager.Instance.AddScore(baseScoreReward);
+        spawner?.OnObjectDestroy();
 
         animator.SetBool("IsDead", true);
         animator.SetTrigger("DieForward");

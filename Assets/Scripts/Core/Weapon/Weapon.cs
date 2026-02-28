@@ -7,10 +7,17 @@ using UnityEngine;
 /// </summary>
 public abstract class Weapon : MonoBehaviour
 {
-    // Поточний стан зброї
-    protected WeaponState currentState = WeaponState.Hidden;
+    [Header("References")]
+    // Камера гравця
+    [SerializeField] protected Camera playerCamera;
+    
+    // Маска влучання
+    [SerializeField] protected LayerMask hitMask;
 
-    public event Action<int, int> OnAmmoChanged; // у магазині, загалом
+    // Поточний стан зброї
+    [SerializeField] protected WeaponState currentState = WeaponState.Hidden;
+
+    public event Action<int> OnAmmoChanged; // у магазині
     public event Action<Sprite> OnWeaponSelected;
 
     // Абстрактне оголошення метода стрільби зброї
@@ -22,9 +29,9 @@ public abstract class Weapon : MonoBehaviour
     // Абстрактне оголошення метода діставання зброї
     public abstract void Unhide();
 
-    protected void NotifyAmmoChanged(int current, int reserve)
+    protected void NotifyAmmoChanged(int current)
     {
-        OnAmmoChanged?.Invoke(current, reserve);
+        OnAmmoChanged?.Invoke(current);
     }
 
     protected void NotifyWeaponSelected(Sprite icon)

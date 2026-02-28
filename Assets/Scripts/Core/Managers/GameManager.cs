@@ -1,4 +1,4 @@
-using System.Collections;
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -12,6 +12,8 @@ public class GameManager : MonoBehaviour
     // Поточний стан гри
     public GameState CurrentState { get; private set; }
 
+    public Action<GameState> OnGameStateChanged;
+
     // Стандартна реалізація Singleton
     private void Awake()
     {
@@ -22,9 +24,6 @@ public class GameManager : MonoBehaviour
         }
 
         Instance = this;
-        
-        // Не знищуэмо екземпляр менеджеру гри при зміні сцен
-        DontDestroyOnLoad(Instance);
     }
 
     private void Start()
@@ -32,24 +31,43 @@ public class GameManager : MonoBehaviour
         StartGame();
     }
 
-    private IEnumerator TestGameOver()
-    {
-        yield return new WaitForSeconds(2);
-    }
-
-    private void Update()
-    {
-        TestGameOver();
-    }
-
     /// <summary>
     /// Метод обробки запуску ігрового процесу
     /// </summary>
     public void StartGame()
     {
-        // Змінюємо стан гри
-        CurrentState = GameState.Playing;
-        Debug.Log("Game Start");
+        ScoreManager.Instance.Reset();
+        GameTimeManager.ResetTime();
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        Time.timeScale = 1f;
+        SetState(GameState.Playing);
+    }
+
+    public void PauseGame()
+    {
+        if (CurrentState != GameState.Playing)
+            return;
+
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        Time.timeScale = 0f;
+        SetState(GameState.Paused);
+    }
+
+    public void ResumeGame()
+    {
+        if (CurrentState != GameState.Paused)
+            return;
+
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
+
+        Time.timeScale = 1f;
+        SetState(GameState.Playing);
     }
 
     /// <summary>
@@ -57,13 +75,20 @@ public class GameManager : MonoBehaviour
     /// </summary>
     public void GameOver()
     {
-        // Якщо стан гри вже встановлено як "Завершена", завершуємо виконання
         if (CurrentState == GameState.GameOver)
             return;
 
-        // Змінюємо стан гри
-        CurrentState = GameState.GameOver;
-        Debug.Log("Game Over");
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+
+        Time.timeScale = 0f;
+        SetState(GameState.GameOver);
+    }
+
+    private void SetState(GameState newState)
+    {
+        CurrentState = newState;
+        OnGameStateChanged?.Invoke(newState);
     }
 
     /// <summary>
@@ -75,6 +100,7 @@ public class GameManager : MonoBehaviour
         /// Активна гра
         /// </summary>
         Playing,
+        Paused,
         /// <summary>
         /// Кінець гри
         /// </summary>

@@ -3,32 +3,29 @@ using UnityEngine;
 public class Shotgun : Weapon
 {
     [Header("Stats")]
-    [SerializeField] private int damagePerPellet = 8;
+    [SerializeField] private int damagePerPellet = 25;
     [SerializeField] private int pellets = 6;
     [SerializeField] private float range = 40f;
 
     [Header("Ammo")]
     [SerializeField] private int maxShells = 6;
-    [SerializeField] private int reserveAmmo = 42;
 
     [SerializeField] private Sprite weaponIcon;
 
     private int currentAmmo;
     private Animator animator;
-    private Camera playerCamera;
 
     private bool isReloading = false;
 
     private void Awake()
     {
         animator = GetComponent<Animator>();
-        playerCamera = GetComponentInParent<Camera>();
         currentAmmo = maxShells;
 
         HUDController.Instance.SetActiveWeapon(this);
 
         NotifyWeaponSelected(weaponIcon);
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
+        NotifyAmmoChanged(currentAmmo);
     }
 
     public override void Fire()
@@ -48,7 +45,7 @@ public class Shotgun : Weapon
 
     public override void Reload()
     {
-        if (isReloading || reserveAmmo <= 0 || currentAmmo == maxShells)
+        if (isReloading || currentAmmo == maxShells)
             return;
 
         currentState = WeaponState.Reloading;
@@ -60,6 +57,7 @@ public class Shotgun : Weapon
     public override void Hide()
     {
         animator.SetTrigger("Hide");
+        isReloading = false;
         currentState = WeaponState.Hidden;
     }
 
@@ -68,12 +66,13 @@ public class Shotgun : Weapon
         currentState = WeaponState.Drawing;
         animator.SetTrigger("Unhide");
         NotifyWeaponSelected(weaponIcon);
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
+        NotifyAmmoChanged(currentAmmo);
     }
 
     public void OnFireEvent()
     {
         currentAmmo--;
+        NotifyAmmoChanged(currentAmmo);
 
         if (currentAmmo <= 0)
         {
@@ -83,20 +82,17 @@ public class Shotgun : Weapon
 
         for (int i = 0; i < pellets; i++)
         {
-            Vector3 direction = playerCamera.transform.forward;
+            Vector3 direction = new Vector3(0.5f, 0.5f);
             direction += Random.insideUnitSphere * 0.05f;
 
-            if (Physics.Raycast(playerCamera.transform.position,
-                                direction,
-                                out RaycastHit hit,
-                                range))
+            Ray ray = playerCamera.ViewportPointToRay(new Vector3(0.5f, 0.5f));
+
+            if (Physics.Raycast(ray, out RaycastHit hit, range, hitMask))
             {
-                IDamageable damageable = hit.collider.GetComponent<IDamageable>();
-                damageable?.TakeDamage(damagePerPellet);
+                if (hit.collider.TryGetComponent<IDamageable>(out var damageable))
+                    damageable.TakeDamage(damagePerPellet);
             }
         }
-
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
     }
 
     public void OnPostFireEvent()
@@ -106,22 +102,20 @@ public class Shotgun : Weapon
 
     public void OnInsertShellEvent()
     {
-        if (reserveAmmo <= 0 || currentAmmo >= maxShells)
+        if (currentAmmo >= maxShells)
         {
             animator.SetTrigger("ReloadLastOne");
             return;
         }
 
-        reserveAmmo--;
-
-        if (currentAmmo < maxShells && reserveAmmo > 0)
+        if (currentAmmo < maxShells)
             animator.SetTrigger("ReloadOne");
         else
             animator.SetTrigger("ReloadLastOne");
         
         currentAmmo++;
 
-        NotifyAmmoChanged(currentAmmo, reserveAmmo);
+        NotifyAmmoChanged(currentAmmo);
     }
 
     public void OnReloadFinished()

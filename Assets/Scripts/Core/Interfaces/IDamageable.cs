@@ -7,5 +7,6 @@ public interface IDamageable
     /// Метод отримання пошкодження
     /// </summary>
     /// <param name="damage">Значення пошкодження</param>
-    void TakeDamage(int damage);
+    void TakeDamage(float damage);
+    bool Heal(int value);
 }
